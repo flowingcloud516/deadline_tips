@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <title>Deadline Tips placeholder icon</title>
+  <rect width="512" height="512" rx="112" fill="#F4F1E8"/>
+  <rect x="96" y="118" width="320" height="298" rx="54" fill="#FFFFFF" stroke="#292824" stroke-width="24"/>
+  <path d="M108 204h296" stroke="#292824" stroke-width="24"/>
+  <path d="M174 88v72M338 88v72" stroke="#292824" stroke-width="28" stroke-linecap="round"/>
+  <circle cx="256" cy="302" r="72" fill="#D8663A"/>
+  <path d="M256 254v56l38 24" fill="none" stroke="#FFFFFF" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+

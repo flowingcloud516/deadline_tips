@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"Default permissions for Deadline Tips","local":true,"windows":["widget","manager"],"permissions":["core:default","core:window:allow-start-dragging","dialog:default","fs:default"]}}
