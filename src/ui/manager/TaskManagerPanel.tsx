@@ -27,12 +27,17 @@ export interface TaskManagerPanelProps {
   dataFilePath?: string;
   storageMessage?: string | null;
   onChooseDataFile?: () => void | Promise<void>;
+  onExportData?: () => void | Promise<void>;
+  onChooseImport?: () => void | Promise<void>;
+  pendingImport?: { path: string; taskCount: number } | null;
+  onCancelImport?: () => void;
+  onConfirmImport?: () => void | Promise<void>;
   onClose?: () => void;
 }
 
 type Editor = { taskId: string; draft: TaskFormDraft } | null;
 
-export function TaskManagerPanel({ tasks, today, onCreate, onUpdate, onDelete, dataFilePath, storageMessage, onChooseDataFile, onClose }: TaskManagerPanelProps) {
+export function TaskManagerPanel({ tasks, today, onCreate, onUpdate, onDelete, dataFilePath, storageMessage, onChooseDataFile, onExportData, onChooseImport, pendingImport, onCancelImport, onConfirmImport, onClose }: TaskManagerPanelProps) {
   const [filters, setFilters] = useState<TaskManagerFilters>(defaultTaskManagerFilters);
   const [editor, setEditor] = useState<Editor>(null);
   const [newTaskDraft, setNewTaskDraft] = useState<TaskFormDraft | null>(null);
@@ -68,9 +73,13 @@ export function TaskManagerPanel({ tasks, today, onCreate, onUpdate, onDelete, d
         </div>
       </header>
 
-      {onChooseDataFile && <section className="task-manager__storage" aria-label="数据文件位置">
+      {onChooseDataFile && <section className="task-manager__storage" aria-label="数据与备份">
         <div><strong>数据文件位置</strong><code title={dataFilePath}>{dataFilePath || "正在读取…"}</code></div>
-        <button type="button" onClick={() => void onChooseDataFile()}>更改位置</button>
+        <div className="task-manager__storage-actions">
+          <button type="button" onClick={() => void onChooseDataFile()}>更改位置</button>
+          {onChooseImport && <button type="button" onClick={() => void onChooseImport()}>导入 JSON</button>}
+          {onExportData && <button type="button" onClick={() => void onExportData()}>导出 JSON</button>}
+        </div>
         {storageMessage && <p role="status">{storageMessage}</p>}
       </section>}
       <TaskFilters filters={filters} onChange={setFilters} />
@@ -90,8 +99,19 @@ export function TaskManagerPanel({ tasks, today, onCreate, onUpdate, onDelete, d
 
       {editor && <TaskEditor editor={editor} onCancel={() => setEditor(null)} onSubmit={submit} onChange={(draft) => setEditor({ ...editor, draft })} />}
       {deleteTarget && <DeleteConfirmation task={deleteTarget} onCancel={() => setDeleteTarget(null)} onConfirm={() => { void onDelete(deleteTarget.id); setDeleteTarget(null); }} />}
+      {pendingImport && onCancelImport && onConfirmImport && <ImportConfirmation path={pendingImport.path} taskCount={pendingImport.taskCount} onCancel={onCancelImport} onConfirm={onConfirmImport} />}
     </main>
   );
+}
+
+function ImportConfirmation({ path, taskCount, onCancel, onConfirm }: { path: string; taskCount: number; onCancel: () => void; onConfirm: () => void | Promise<void> }) {
+  return <section className="task-manager__dialog" role="alertdialog" aria-modal="true" aria-labelledby="import-title"><div>
+    <h2 id="import-title">覆盖当前数据？</h2>
+    <p>已验证所选 JSON，其中包含 {taskCount} 项任务。继续后将用它覆盖当前任务和设置；当前数据文件的位置不会改变。</p>
+    <code className="task-manager__import-path" title={path}>{path}</code>
+    <p>建议先导出当前数据作为备份。</p>
+    <div className="task-manager__dialog-actions"><button type="button" onClick={onCancel}>取消</button><button type="button" className="task-manager__danger-button" onClick={() => void onConfirm()}>确认导入并覆盖</button></div>
+  </div></section>;
 }
 
 function TaskFilters({ filters, onChange }: { filters: TaskManagerFilters; onChange: (filters: TaskManagerFilters) => void }) {

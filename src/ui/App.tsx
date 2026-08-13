@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { emit, listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke, isTauri } from "@tauri-apps/api/core";
-import { save as chooseSavePath } from "@tauri-apps/plugin-dialog";
+import { open as chooseOpenPath, save as chooseSavePath } from "@tauri-apps/plugin-dialog";
 import { TaskService } from "../application/task-service";
 import { queryWidgetTaskSections, type TaskDeadlineSummary } from "../application/task-queries";
 import type { Task } from "../domain/task";
@@ -87,6 +87,7 @@ function ManagerApp() {
   const { tasks, loading, error, reload } = useTasks();
   const [dataFilePath, setDataFilePath] = useState("");
   const [storageMessage, setStorageMessage] = useState<string | null>(null);
+  const [pendingImport, setPendingImport] = useState<{ path: string; data: Awaited<ReturnType<typeof storage.importFrom>> } | null>(null);
   useEffect(() => {
     if (!isTauri()) return;
     void invoke<string>("get_data_file_path").then(setDataFilePath).catch((reason) => setStorageMessage(String(reason)));
@@ -119,10 +120,49 @@ function ManagerApp() {
       setStorageMessage(`无法更改数据文件位置：${reason instanceof Error ? reason.message : String(reason)}`);
     }
   };
+  const exportData = async () => {
+    if (!isTauri()) return;
+    setStorageMessage(null);
+    try {
+      const selected = await chooseSavePath({ title: "导出 Deadline Tips 数据", defaultPath: "deadline-tips-backup.json", filters: [{ name: "JSON 数据文件", extensions: ["json"] }] });
+      if (!selected) return;
+      const normalized = selected.toLowerCase().endsWith(".json") ? selected : `${selected}.json`;
+      await storage.exportTo(normalized);
+      setStorageMessage(`数据已导出到：${normalized}`);
+    } catch (reason) {
+      setStorageMessage(`无法导出数据：${reason instanceof Error ? reason.message : String(reason)}`);
+    }
+  };
+  const chooseImport = async () => {
+    if (!isTauri()) return;
+    setStorageMessage(null);
+    try {
+      const selected = await chooseOpenPath({ title: "导入 Deadline Tips 数据", multiple: false, directory: false, filters: [{ name: "JSON 数据文件", extensions: ["json"] }] });
+      if (!selected) return;
+      const imported = await storage.importFrom(selected);
+      setPendingImport({ path: selected, data: imported });
+    } catch (reason) {
+      setStorageMessage(`无法导入数据：${reason instanceof Error ? reason.message : String(reason)}`);
+    }
+  };
+  const confirmImport = async () => {
+    if (!pendingImport) return;
+    try {
+      await storage.save(pendingImport.data);
+      const importedPath = pendingImport.path;
+      setPendingImport(null);
+      await reload();
+      await emit(DATA_CHANGED_EVENT);
+      setStorageMessage(`已从 ${importedPath} 导入数据。当前数据文件位置未改变。`);
+    } catch (reason) {
+      setStorageMessage(`无法导入数据：${reason instanceof Error ? reason.message : String(reason)}`);
+      setPendingImport(null);
+    }
+  };
 
   if (loading) return <main className="manager-loading">正在读取本地任务…</main>;
   if (error) return <main className="manager-loading" role="alert">无法读取任务：{error}</main>;
-  return <TaskManagerPanel tasks={tasks} today={localToday()} dataFilePath={dataFilePath} storageMessage={storageMessage} onChooseDataFile={chooseDataFile} onCreate={create} onUpdate={update} onDelete={remove} onClose={close} />;
+  return <TaskManagerPanel tasks={tasks} today={localToday()} dataFilePath={dataFilePath} storageMessage={storageMessage} onChooseDataFile={chooseDataFile} onExportData={exportData} onChooseImport={chooseImport} pendingImport={pendingImport ? { path: pendingImport.path, taskCount: pendingImport.data.tasks.length } : null} onCancelImport={() => setPendingImport(null)} onConfirmImport={confirmImport} onCreate={create} onUpdate={update} onDelete={remove} onClose={close} />;
 }
 
 function TaskSection({ title, subtitle, emptyText, tasks, type }: { title: string; subtitle: string; emptyText: string; tasks: TaskDeadlineSummary[]; type: "upcoming" | "important" }) {

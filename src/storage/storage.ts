@@ -56,6 +56,7 @@ export const defaultAppData: AppData = {
 
 export class MemoryStorage implements StoragePort {
   private data: AppData = structuredClone(defaultAppData);
+  private exported = new Map<string, AppData>();
 
   async load(): Promise<AppData> {
     return structuredClone(this.data);
@@ -69,9 +70,13 @@ export class MemoryStorage implements StoragePort {
     this.data.settings.dataFilePath = path;
   }
 
-  async exportTo(_path: string): Promise<void> {}
+  async exportTo(path: string): Promise<void> {
+    this.exported.set(path, structuredClone(this.data));
+  }
 
-  async importFrom(_path: string): Promise<AppData> {
-    return this.load();
+  async importFrom(path: string): Promise<AppData> {
+    const data = this.exported.get(path);
+    if (!data) throw new Error(`Import source not found: ${path}`);
+    return structuredClone(data);
   }
 }

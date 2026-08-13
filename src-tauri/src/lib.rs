@@ -598,4 +598,41 @@ mod tests {
         assert_eq!(read_location(&location), Some(target));
         fs::remove_dir_all(directory).unwrap();
     }
+
+    #[test]
+    fn export_writes_a_valid_independent_snapshot() {
+        let directory = test_directory("export");
+        let source = directory.join("source.json");
+        let destination = directory.join("backup.json");
+        let mut data = default_app_data();
+        data["tasks"] = json!([{ "id": "exported-task" }]);
+        write_json_atomic(&source, &data).expect("source write");
+
+        write_json_atomic(&destination, &load_data(&source).expect("source load"))
+            .expect("export write");
+        let exported = load_data(&destination).expect("export load");
+        assert_eq!(exported["tasks"][0]["id"], "exported-task");
+
+        data["tasks"] = json!([]);
+        write_json_atomic(&source, &data).expect("source replacement");
+        assert_eq!(load_data(&destination).unwrap()["tasks"][0]["id"], "exported-task");
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn import_rejects_malformed_and_unsupported_documents() {
+        let directory = test_directory("import-validation");
+        let malformed = directory.join("malformed.json");
+        fs::write(&malformed, "{not-json}").unwrap();
+        assert!(load_data(&malformed).unwrap_err().contains("不是有效 JSON"));
+
+        let unsupported = directory.join("unsupported.json");
+        let mut data = default_app_data();
+        data["schemaVersion"] = json!(2);
+        write_json_atomic(&unsupported, &data).unwrap();
+        assert!(load_data(&unsupported)
+            .unwrap_err()
+            .contains("不支持的数据版本"));
+        fs::remove_dir_all(directory).unwrap();
+    }
 }

@@ -39,4 +39,5 @@ npm.cmd run tauri dev
 - `src/ui/`：React 界面与设计变量
 - `src-tauri/`：Windows 桌面运行时配置和 Rust 入口
 - `docs/`：需求、设计与开发计划
+- `docs/windows-compatibility.md`：Windows 兼容性验证记录
 - `tests/`：后续跨模块测试
