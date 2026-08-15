@@ -287,6 +287,7 @@ fn show_widget(app: &AppHandle) -> Result<(), String> {
     widget
         .show()
         .map_err(|error| format!("无法显示悬浮窗: {error}"))?;
+    hide_window_from_windows_taskbar(&widget)?;
     widget
         .set_focus()
         .map_err(|error| format!("无法聚焦悬浮窗: {error}"))
@@ -315,6 +316,7 @@ fn open_task_manager_window(app: &AppHandle) -> Result<(), String> {
     manager
         .show()
         .map_err(|error| format!("无法显示任务管理窗口: {error}"))?;
+    hide_window_from_windows_taskbar(&manager)?;
     manager
         .set_focus()
         .map_err(|error| format!("无法聚焦任务管理窗口: {error}"))
@@ -325,6 +327,10 @@ fn install_window_lifecycle(app: &AppHandle) -> Result<(), String> {
         let window = app
             .get_webview_window(label)
             .ok_or_else(|| format!("找不到窗口: {label}"))?;
+        window
+            .set_skip_taskbar(true)
+            .map_err(|error| format!("无法从任务栏隐藏窗口 {label}: {error}"))?;
+        hide_window_from_windows_taskbar(&window)?;
         let app_handle = app.clone();
         let label = label.to_string();
         window.on_window_event(move |event| match event {
@@ -635,4 +641,60 @@ mod tests {
             .contains("不支持的数据版本"));
         fs::remove_dir_all(directory).unwrap();
     }
+}
+
+#[cfg(target_os = "windows")]
+fn hide_window_from_windows_taskbar(window: &WebviewWindow) -> Result<(), String> {
+    use std::ffi::c_void;
+    type Hwnd = *mut c_void;
+    const GWL_EXSTYLE: i32 = -20;
+    const WS_EX_TOOLWINDOW: isize = 0x0000_0080;
+    const WS_EX_APPWINDOW: isize = 0x0004_0000;
+    const SWP_NOSIZE: u32 = 0x0001;
+    const SWP_NOMOVE: u32 = 0x0002;
+    const SWP_NOZORDER: u32 = 0x0004;
+    const SWP_NOACTIVATE: u32 = 0x0010;
+    const SWP_FRAMECHANGED: u32 = 0x0020;
+
+    #[link(name = "user32")]
+    unsafe extern "system" {
+        fn GetWindowLongPtrW(hwnd: Hwnd, index: i32) -> isize;
+        fn SetWindowLongPtrW(hwnd: Hwnd, index: i32, value: isize) -> isize;
+        fn SetWindowPos(
+            hwnd: Hwnd,
+            insert_after: Hwnd,
+            x: i32,
+            y: i32,
+            width: i32,
+            height: i32,
+            flags: u32,
+        ) -> i32;
+    }
+
+    let hwnd = window
+        .hwnd()
+        .map_err(|error| format!("无法获取窗口句柄: {error}"))?;
+    unsafe {
+        let current = GetWindowLongPtrW(hwnd.0 as Hwnd, GWL_EXSTYLE);
+        let desired = (current & !WS_EX_APPWINDOW) | WS_EX_TOOLWINDOW;
+        SetWindowLongPtrW(hwnd.0 as Hwnd, GWL_EXSTYLE, desired);
+        if SetWindowPos(
+            hwnd.0 as Hwnd,
+            std::ptr::null_mut(),
+            0,
+            0,
+            0,
+            0,
+            SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+        ) == 0
+        {
+            return Err("无法刷新窗口任务栏样式".to_string());
+        }
+    }
+    Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn hide_window_from_windows_taskbar(_window: &WebviewWindow) -> Result<(), String> {
+    Ok(())
 }

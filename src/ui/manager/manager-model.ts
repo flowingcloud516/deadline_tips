@@ -92,7 +92,7 @@ export function validateTaskForm(draft: TaskFormDraft): TaskFormErrors {
   const length = titleLength(draft.title);
   if (length === 0) errors.title = "请输入任务名称。";
   else if (length > 20) errors.title = "任务名称不能超过 20 个字符。";
-  if (!isIsoCalendarDate(draft.nextDeadline)) errors.nextDeadline = "请选择有效的截止日期。";
+  if (!isIsoCalendarDate(draft.nextDeadline)) errors.nextDeadline = draft.type === "recurring" ? "请选择有效的结束日期。" : "请选择有效的截止日期。";
 
   if (draft.type === "recurring") {
     if (draft.recurrenceKind === "weekly" && !isIntegerInRange(draft.weekday, 1, 7)) {

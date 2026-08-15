@@ -21,7 +21,16 @@ describe("widget presentation model", () => {
     const result = buildWidgetSections(tasks, "2026-08-12", 7);
     expect(result.upcoming.map((task) => task.id)).toEqual(["near-normal"]);
     expect(result.important.map((task) => task.id)).toEqual(["near-important", "long-important"]);
-    expect(new Set([...result.upcoming, ...result.important].map((task) => task.id)).size).toBe(3);
+    expect(result.recurring).toEqual([]);
+    expect(new Set([...result.upcoming, ...result.recurring, ...result.important].map((task) => task.id)).size).toBe(3);
+  });
+
+  it("keeps recurring tasks visible outside the upcoming range", () => {
+    const result = buildWidgetSections([
+      { id: "recurring", title: "长期周期任务", deadline: "2026-10-12", status: "pending", important: false, type: "recurring" },
+    ], "2026-08-12", 7);
+    expect(result.upcoming).toEqual([]);
+    expect(result.recurring.map((task) => task.id)).toEqual(["recurring"]);
   });
 
   it("excludes completed tasks and calculates long-term weeks to one-decimal-ready precision", () => {

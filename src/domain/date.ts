@@ -39,6 +39,28 @@ function deadlineForMonth(year: number, monthIndex: number, recurrence: Recurren
   throw new Error("每月日期计算收到非每月规则");
 }
 
+/** Finds the next scheduled occurrence on or after today, bounded by the task end date. */
+export function nextOccurrence(today: string, endDate: string, recurrence: Recurrence): string | null {
+  const current = parseLocalDate(today);
+  const end = parseLocalDate(endDate);
+  if (current > end) return null;
+
+  let occurrence: Date;
+  if (recurrence.kind === "weekly") {
+    const currentWeekday = current.getDay() === 0 ? 7 : current.getDay();
+    occurrence = new Date(current);
+    occurrence.setDate(occurrence.getDate() + ((recurrence.weekday - currentWeekday + 7) % 7));
+  } else {
+    occurrence = deadlineForMonth(current.getFullYear(), current.getMonth(), recurrence);
+    if (occurrence < current) {
+      const nextMonth = new Date(current.getFullYear(), current.getMonth() + 1, 1);
+      occurrence = deadlineForMonth(nextMonth.getFullYear(), nextMonth.getMonth(), recurrence);
+    }
+  }
+
+  return occurrence <= end ? formatLocalDate(occurrence) : null;
+}
+
 export function nextDeadline(currentDeadline: string, recurrence: Recurrence): string {
   const current = parseLocalDate(currentDeadline);
 

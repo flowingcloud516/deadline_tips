@@ -124,7 +124,7 @@ describe("TaskService", () => {
       recurrence: { kind: "monthly-before-end", daysBeforeEnd: 1 },
     });
     const completed = await service.completeCurrentCycle(task.id);
-    expect(completed).toMatchObject({ status: "pending", nextDeadline: "2028-03-30" });
+    expect(completed).toMatchObject({ status: "pending", nextDeadline: "2028-02-28" });
   });
 
   it("reports a missing task for every mutation", async () => {

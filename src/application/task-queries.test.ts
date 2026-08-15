@@ -49,7 +49,7 @@ describe("queryWidgetTaskSections", () => {
       makeTask({ id: "skipped-important", nextDeadline: "2026-09-10", important: true, status: "skipped" }),
     ], today, 7);
 
-    expect(result).toEqual({ upcoming: [], important: [] });
+    expect(result).toEqual({ upcoming: [], recurring: [], important: [] });
   });
 
   it("does not duplicate overdue important tasks across the sections", () => {
@@ -69,6 +69,47 @@ describe("queryWidgetTaskSections", () => {
     ], today, 7);
 
     expect(result.important.map(({ task }) => task.id)).toEqual(["sooner", "later"]);
+  });
+
+  it("shows every non-important recurring task in its own section regardless of range", () => {
+    const result = queryWidgetTaskSections([
+      makeTask({ id: "weekly-near", type: "recurring", nextDeadline: "2026-08-12", recurrence: { kind: "weekly", weekday: 3 } }),
+      makeTask({ id: "monthly-long", type: "recurring", nextDeadline: "2026-10-31", recurrence: { kind: "monthly-day", day: 31 } }),
+    ], today, 7);
+
+    expect(result.upcoming).toEqual([]);
+    expect(result.recurring.map(({ task }) => task.id)).toEqual(["weekly-near", "monthly-long"]);
+    expect(result.important).toEqual([]);
+  });
+
+  it("derives the next recurring occurrence while preserving the overall end date", () => {
+    const result = queryWidgetTaskSections([
+      makeTask({ id: "friday", type: "recurring", nextDeadline: "2026-09-30", recurrence: { kind: "weekly", weekday: 5 } }),
+    ], "2026-08-13", 7);
+
+    expect(result.recurring[0]).toMatchObject({
+      daysRemaining: 48,
+      nextOccurrence: "2026-08-14",
+      occurrenceDaysRemaining: 1,
+    });
+  });
+
+  it("does not schedule an occurrence beyond a recurring task's end date", () => {
+    const result = queryWidgetTaskSections([
+      makeTask({ id: "ended-before-friday", type: "recurring", nextDeadline: "2026-08-13", recurrence: { kind: "weekly", weekday: 5 } }),
+    ], "2026-08-13", 7);
+
+    expect(result.recurring[0]).toMatchObject({ nextOccurrence: null, occurrenceDaysRemaining: null });
+  });
+
+  it("keeps important recurring tasks in the important section only", () => {
+    const result = queryWidgetTaskSections([
+      makeTask({ id: "important-recurring", type: "recurring", important: true, recurrence: { kind: "weekly", weekday: 3 } }),
+    ], today, 7);
+
+    expect(result.upcoming).toEqual([]);
+    expect(result.recurring).toEqual([]);
+    expect(result.important.map(({ task }) => task.id)).toEqual(["important-recurring"]);
   });
 
   it("rejects an invalid upcoming range", () => {

@@ -4,6 +4,7 @@ export type WidgetTask = {
   deadline: string;
   status: "pending" | "completed" | "skipped";
   important: boolean;
+  type?: "one-time" | "recurring";
 };
 
 export type WidgetTaskView = WidgetTask & {
@@ -13,6 +14,7 @@ export type WidgetTaskView = WidgetTask & {
 
 export type WidgetSections = {
   upcoming: WidgetTaskView[];
+  recurring: WidgetTaskView[];
   important: WidgetTaskView[];
   pendingCount: number;
 };
@@ -23,9 +25,8 @@ export function daysUntil(deadline: string, today: string): number {
 }
 
 /**
- * Produces the two non-overlapping widget regions. Important tasks inside the
- * upcoming window deliberately stay in the upcoming list and receive a visual
- * highlight there instead of appearing twice.
+ * Produces three non-overlapping widget regions. Important tasks have priority,
+ * followed by recurring tasks; upcoming contains only ordinary one-time tasks.
  */
 export function buildWidgetSections(
   tasks: WidgetTask[],
@@ -40,11 +41,14 @@ export function buildWidgetSections(
   const important = pending
     .filter((task) => task.important)
     .sort(byDeadline);
+  const recurring = pending
+    .filter((task) => !task.important && task.type === "recurring")
+    .sort(byDeadline);
   const upcoming = pending
-    .filter((task) => !task.important && task.daysRemaining <= upcomingDays)
+    .filter((task) => !task.important && task.type !== "recurring" && task.daysRemaining <= upcomingDays)
     .sort(byDeadline);
 
-  return { upcoming, important, pendingCount: pending.length };
+  return { upcoming, recurring, important, pendingCount: pending.length };
 }
 
 export function formatDeadline(value: string): string {

@@ -86,7 +86,7 @@ export function TaskManagerPanel({ tasks, today, onCreate, onUpdate, onDelete, d
       <p className="task-manager__count">共 {visibleTasks.length} 项，按截止日期排序</p>
       <div className="task-manager__table-wrap">
         <table className="task-manager__table">
-          <thead><tr><th>ID</th><th>任务</th><th>详情</th><th>类型 / 规则</th><th>截止日期</th><th>重要</th><th>状态</th><th>创建时间</th><th>更新时间</th><th>操作</th></tr></thead>
+          <thead><tr><th>ID</th><th>任务</th><th>详情</th><th>类型 / 规则</th><th>截止日期 / 结束日期</th><th>重要</th><th>状态</th><th>创建时间</th><th>更新时间</th><th>操作</th></tr></thead>
           <tbody>
             {visibleTasks.map((task) => <TaskRow key={task.id} task={task} today={today} onEdit={() => setEditor({ taskId: task.id, draft: draftFromTask(task) })} onDelete={() => setDeleteTarget(task)} />)}
             {visibleTasks.length === 0 && <tr><td colSpan={10} className="task-manager__empty">没有符合筛选条件的任务。</td></tr>}
@@ -144,7 +144,7 @@ function TaskEditor({ editor, onCancel, onSubmit, onChange }: { editor: Exclude<
       <label>任务名称<input value={editor.draft.title} maxLength={20} onChange={(event) => update("title", event.target.value)} />{errors.title && <small role="alert">{errors.title}</small>}</label>
       <label>任务详情<textarea value={editor.draft.details} onChange={(event) => update("details", event.target.value)} /></label>
       <label>任务类型<select aria-label="任务类型" value={editor.draft.type} onChange={(event) => update("type", event.target.value as Task["type"])}><option value="one-time">一次性</option><option value="recurring">周期性</option></select></label>
-      <DateField value={editor.draft.nextDeadline} onChange={(value) => update("nextDeadline", value)} error={errors.nextDeadline} />
+      <DateField recurring={recurring} value={editor.draft.nextDeadline} onChange={(value) => update("nextDeadline", value)} error={errors.nextDeadline} />
       <label>任务状态<select aria-label="任务状态" value={editor.draft.status} onChange={(event) => update("status", event.target.value as Task["status"])}><option value="pending">待完成</option><option value="completed">已完成</option><option value="skipped">已跳过</option></select></label>
       <label className="task-manager__important-check"><input type="checkbox" aria-label="标记为重要任务" checked={editor.draft.important} onChange={(event) => update("important", event.target.checked)} /><span>标记为重要任务</span></label>
       {recurring && <RecurrenceFields draft={editor.draft} errors={errors} update={update} />}
@@ -175,7 +175,7 @@ function InlineTaskCreateRow({
       <label className="sr-only" htmlFor="inline-task-type">任务类型</label><select id="inline-task-type" value={draft.type} onChange={(event) => update("type", event.target.value as Task["type"])}><option value="one-time">一次性</option><option value="recurring">周期性</option></select>
       {recurring && <details open><summary>设置重复规则</summary><InlineRecurrenceFields draft={draft} errors={errors} update={update} /></details>}
     </td>
-    <td><DateField id="inline-task-deadline" compact value={draft.nextDeadline} onChange={(value) => update("nextDeadline", value)} error={errors.nextDeadline} /></td>
+    <td><DateField id="inline-task-deadline" compact recurring={recurring} value={draft.nextDeadline} onChange={(value) => update("nextDeadline", value)} error={errors.nextDeadline} /></td>
     <td><label className="task-manager__inline-check"><input aria-label="标记为重要任务" type="checkbox" checked={draft.important} onChange={(event) => update("important", event.target.checked)} />重要</label></td>
     <td><label className="sr-only" htmlFor="inline-task-status">任务状态</label><select id="inline-task-status" value={draft.status} onChange={(event) => update("status", event.target.value as Task["status"])}><option value="pending">待完成</option><option value="completed">已完成</option><option value="skipped">已跳过</option></select></td>
     <td aria-hidden="true">—</td><td aria-hidden="true">—</td>
@@ -183,11 +183,11 @@ function InlineTaskCreateRow({
   </tr>;
 }
 
-function DateField({ id = "task-deadline", value, onChange, error, compact = false }: { id?: string; value: string; onChange: (value: string) => void; error?: string; compact?: boolean }) {
+function DateField({ id = "task-deadline", value, onChange, error, compact = false, recurring = false }: { id?: string; value: string; onChange: (value: string) => void; error?: string; compact?: boolean; recurring?: boolean }) {
   return <label className={`task-manager__date-field ${compact ? "task-manager__date-field--compact" : ""}`} htmlFor={id}>
-    {!compact && <span>截止日期</span>}
+    {!compact && <span>{recurring ? "结束日期" : "截止日期"}</span>}
     <input id={id} type="date" value={value} aria-describedby={`${id}-hint`} onChange={(event) => onChange(event.target.value)} />
-    <small id={`${id}-hint`} className="task-manager__date-hint">可点击日历选择；手动输入请使用 YYYY-MM-DD</small>
+    <small id={`${id}-hint`} className="task-manager__date-hint">{recurring ? "周期任务将在此日期结束；" : ""}可点击日历选择；手动输入请使用 YYYY-MM-DD</small>
     {error && <small role="alert">{error}</small>}
   </label>;
 }

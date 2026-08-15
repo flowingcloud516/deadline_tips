@@ -10,6 +10,7 @@ import { createStorage } from "../storage/create-storage";
 import { TaskManagerPanel } from "./manager/TaskManagerPanel";
 import type { TaskFormValue } from "./manager/manager-model";
 import { formatDeadline } from "./widget-model";
+import { localDateString, millisecondsUntilNextHour } from "./widget-clock";
 
 const storage = createStorage();
 const taskService = new TaskService(storage);
@@ -52,7 +53,7 @@ function useTasks() {
 function WidgetApp() {
   const [isExpanded, setIsExpanded] = useState(true);
   const { tasks, loading, error } = useTasks();
-  const today = localToday();
+  const today = useLocalToday();
   const sections = useMemo(() => queryWidgetTaskSections(tasks, today, 7), [tasks, today]);
   const openManager = async () => {
     if (isTauri()) await invoke("open_task_manager");
@@ -76,15 +77,17 @@ function WidgetApp() {
       {error && <p className="error-state" role="alert">无法读取任务：{error}</p>}
       {!loading && !error && isExpanded && <div className="widget__content">
         <TaskSection title="近期即将到期" subtitle={`未来 7 天 · ${sections.upcoming.length} 项`} emptyText="未来 7 天没有普通待办任务" tasks={sections.upcoming} type="upcoming" />
+        <TaskSection title="周期任务" subtitle={`${sections.recurring.length} 项持续关注`} emptyText="暂时没有待完成的周期任务" tasks={sections.recurring} type="recurring" />
         <TaskSection title="重要任务" subtitle={`${sections.important.length} 项重点关注`} emptyText="暂时没有重要任务" tasks={sections.important} type="important" />
       </div>}
-      <footer className="widget__footer"><span>{sections.upcoming.length + sections.important.length} 项正在关注</span><button type="button" onClick={() => void openManager()}>任务管理</button></footer>
+      <footer className="widget__footer"><span>{sections.upcoming.length + sections.recurring.length + sections.important.length} 项正在关注</span><button type="button" onClick={() => void openManager()}>任务管理</button></footer>
     </section>
   </main>;
 }
 
 function ManagerApp() {
   const { tasks, loading, error, reload } = useTasks();
+  const today = useLocalToday();
   const [dataFilePath, setDataFilePath] = useState("");
   const [storageMessage, setStorageMessage] = useState<string | null>(null);
   const [pendingImport, setPendingImport] = useState<{ path: string; data: Awaited<ReturnType<typeof storage.importFrom>> } | null>(null);
@@ -162,20 +165,51 @@ function ManagerApp() {
 
   if (loading) return <main className="manager-loading">正在读取本地任务…</main>;
   if (error) return <main className="manager-loading" role="alert">无法读取任务：{error}</main>;
-  return <TaskManagerPanel tasks={tasks} today={localToday()} dataFilePath={dataFilePath} storageMessage={storageMessage} onChooseDataFile={chooseDataFile} onExportData={exportData} onChooseImport={chooseImport} pendingImport={pendingImport ? { path: pendingImport.path, taskCount: pendingImport.data.tasks.length } : null} onCancelImport={() => setPendingImport(null)} onConfirmImport={confirmImport} onCreate={create} onUpdate={update} onDelete={remove} onClose={close} />;
+  return <TaskManagerPanel tasks={tasks} today={today} dataFilePath={dataFilePath} storageMessage={storageMessage} onChooseDataFile={chooseDataFile} onExportData={exportData} onChooseImport={chooseImport} pendingImport={pendingImport ? { path: pendingImport.path, taskCount: pendingImport.data.tasks.length } : null} onCancelImport={() => setPendingImport(null)} onConfirmImport={confirmImport} onCreate={create} onUpdate={update} onDelete={remove} onClose={close} />;
 }
 
-function TaskSection({ title, subtitle, emptyText, tasks, type }: { title: string; subtitle: string; emptyText: string; tasks: TaskDeadlineSummary[]; type: "upcoming" | "important" }) {
+function TaskSection({ title, subtitle, emptyText, tasks, type }: { title: string; subtitle: string; emptyText: string; tasks: TaskDeadlineSummary[]; type: "upcoming" | "recurring" | "important" }) {
   return <section className="task-section" aria-label={title}><div className="section-heading"><h2>{title}</h2><span>{subtitle}</span></div>{tasks.length === 0 ? <p className="empty-state">{emptyText}</p> : <div className="task-list">{tasks.map((task) => <TaskCard key={task.task.id} task={task} type={type} />)}</div>}</section>;
 }
 
-function TaskCard({ task, type }: { task: TaskDeadlineSummary; type: "upcoming" | "important" }) {
+function TaskCard({ task, type }: { task: TaskDeadlineSummary; type: "upcoming" | "recurring" | "important" }) {
   const urgent = type === "important" && task.daysRemaining <= 7;
   const countdown = task.daysRemaining === 0 ? "今天到期" : task.daysRemaining < 0 ? `已逾期 ${Math.abs(task.daysRemaining)} 天` : `还有 ${task.daysRemaining} 天`;
-  return <article className={`task-card ${urgent ? "task-card--important-near" : ""}`}><span className={`status-dot ${urgent ? "status-dot--important" : ""}`} aria-hidden="true" /><div className="task-card__body"><div className="task-card__title-row"><strong title={task.task.title}>{task.task.title}</strong>{type === "important" && <span className="important-badge">重要</span>}</div><span>{formatDeadline(task.task.nextDeadline)}</span></div><div className={`countdown ${urgent ? "countdown--important" : ""}`}><strong>{countdown}</strong>{type === "important" && <span>约 {task.weeksRemaining.toFixed(1)} 周</span>}</div></article>;
+  const recurring = task.task.type === "recurring";
+  const occurrenceCountdown = task.occurrenceDaysRemaining === 0
+    ? "下一次任务就在今天"
+    : task.occurrenceDaysRemaining === null
+      ? "截止前没有下一次任务"
+      : `下一次任务还有 ${task.occurrenceDaysRemaining} 天`;
+  return <article className={`task-card ${urgent ? "task-card--important-near" : ""}`}><span className={`status-dot ${urgent ? "status-dot--important" : ""}`} aria-hidden="true" /><div className="task-card__body"><div className="task-card__title-row"><strong title={task.task.title}>{task.task.title}</strong>{type === "important" && <span className="important-badge">重要</span>}</div><span>{recurring ? `结束日期：${formatDeadline(task.task.nextDeadline)}` : formatDeadline(task.task.nextDeadline)}</span>{recurring && task.nextOccurrence && <span>下一次：{formatDeadline(task.nextOccurrence)}</span>}</div><div className={`countdown ${urgent ? "countdown--important" : ""}`}>{recurring ? <><strong>{occurrenceCountdown}</strong><span>{task.daysRemaining < 0 ? `已截止 ${Math.abs(task.daysRemaining)} 天` : task.daysRemaining === 0 ? "今天整体截止" : `距截止还有 ${task.daysRemaining} 天`}</span></> : <><strong>{countdown}</strong>{type === "important" && <span>约 {task.weeksRemaining.toFixed(1)} 周</span>}</>}</div></article>;
 }
 
-function localToday(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+function useLocalToday(): string {
+  const [today, setToday] = useState(() => localDateString(new Date()));
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const refresh = () => setToday(localDateString(new Date()));
+    const schedule = () => {
+      const now = new Date();
+      timer = setTimeout(() => {
+        refresh();
+        schedule();
+      }, millisecondsUntilNextHour(now));
+    };
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+
+    schedule();
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      if (timer) clearTimeout(timer);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, []);
+
+  return today;
 }

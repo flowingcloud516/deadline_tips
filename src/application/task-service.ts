@@ -1,4 +1,3 @@
-import { nextDeadline } from "../domain/date";
 import { taskSchema, type Recurrence, type Task, type TaskStatus } from "../domain/task";
 import { parseAppData, type AppData, type StoragePort } from "../storage/storage";
 
@@ -117,8 +116,8 @@ export class TaskService {
   }
 
   /**
-   * Records completion of the current occurrence. Recurring tasks immediately
-   * become pending for their next occurrence; one-time tasks become completed.
+   * Records completion of the current occurrence. A recurring task's deadline is
+   * its fixed end date, so completing an occurrence must not move that boundary.
    */
   async completeCurrentCycle(taskId: string): Promise<Task> {
     return this.mutate((data) => {
@@ -128,7 +127,6 @@ export class TaskService {
         existing.type === "recurring"
           ? {
               ...existing,
-              nextDeadline: nextDeadline(existing.nextDeadline, existing.recurrence!),
               status: "pending",
               updatedAt: this.now(),
             }

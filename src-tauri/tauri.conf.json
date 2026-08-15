@@ -20,6 +20,7 @@
         "minHeight": 360,
         "resizable": true,
         "decorations": false,
+        "skipTaskbar": true,
         "alwaysOnTop": true,
         "center": true
       },
@@ -31,6 +32,7 @@
         "minWidth": 720,
         "minHeight": 540,
         "resizable": true,
+        "skipTaskbar": true,
         "visible": false,
         "center": true
       }
