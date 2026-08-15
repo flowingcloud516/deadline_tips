@@ -4,13 +4,16 @@
 
 ## 当前状态
 
-项目已进入开发阶段，当前包含：
+当前已发布 `0.1.0 beta`，包含：
 
 - Tauri 2 + React + TypeScript + Vite 工程骨架
 - 任务领域模型和周期日期算法
-- 可扩展的本地存储接口
-- 悬浮窗视觉原型（待用户确认）
-- 第一批闰年、大小月和每周周期测试
+- JSON 本地存储、导入导出和数据路径迁移
+- 近期、周期和重要任务三区悬浮窗
+- 系统托盘、任务管理窗口和整点日期刷新
+- Windows 11 release 构建、安装和 UI 验收
+
+当前版本已达到可安装、可运行和可分发状态，低优先级增强功能暂缓开发。
 
 详细需求见 [`docs/requirements-v1.0.md`](docs/requirements-v1.0.md)，开发阶段见 [`docs/development-plan.md`](docs/development-plan.md)。
 
