@@ -7,6 +7,7 @@ export interface AppSettings {
   alwaysOnTop: boolean;
   launchAtStartup: boolean;
   dataFilePath: string | null;
+  dailyShowTime: string;
 }
 
 export interface AppData {
@@ -29,6 +30,7 @@ export const appSettingsSchema = z.object({
   alwaysOnTop: z.boolean(),
   launchAtStartup: z.boolean(),
   dataFilePath: z.string().nullable(),
+  dailyShowTime: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/).default("10:00"),
 });
 
 export const appDataSchema = z.object({
@@ -50,6 +52,7 @@ export const defaultAppData: AppData = {
     alwaysOnTop: true,
     launchAtStartup: false,
     dataFilePath: null,
+    dailyShowTime: "10:00",
   },
   history: [],
 };

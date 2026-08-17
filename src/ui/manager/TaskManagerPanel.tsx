@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type { Task } from "../../domain/task";
 import {
   createTaskFormDraft,
@@ -32,18 +32,24 @@ export interface TaskManagerPanelProps {
   pendingImport?: { path: string; taskCount: number } | null;
   onCancelImport?: () => void;
   onConfirmImport?: () => void | Promise<void>;
+  dailyShowTime?: string;
+  settingsMessage?: string | null;
+  onSaveDailyShowTime?: (time: string) => void | Promise<void>;
   onClose?: () => void;
 }
 
 type Editor = { taskId: string; draft: TaskFormDraft } | null;
 
-export function TaskManagerPanel({ tasks, today, onCreate, onUpdate, onDelete, dataFilePath, storageMessage, onChooseDataFile, onExportData, onChooseImport, pendingImport, onCancelImport, onConfirmImport, onClose }: TaskManagerPanelProps) {
+export function TaskManagerPanel({ tasks, today, onCreate, onUpdate, onDelete, dataFilePath, storageMessage, onChooseDataFile, onExportData, onChooseImport, pendingImport, onCancelImport, onConfirmImport, dailyShowTime = "10:00", settingsMessage, onSaveDailyShowTime, onClose }: TaskManagerPanelProps) {
   const [filters, setFilters] = useState<TaskManagerFilters>(defaultTaskManagerFilters);
   const [editor, setEditor] = useState<Editor>(null);
   const [newTaskDraft, setNewTaskDraft] = useState<TaskFormDraft | null>(null);
   const [newTaskSubmitAttempted, setNewTaskSubmitAttempted] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Task | null>(null);
+  const [dailyTimeDraft, setDailyTimeDraft] = useState(dailyShowTime);
   const visibleTasks = useMemo(() => filterAndSortTasks(tasks, filters), [tasks, filters]);
+
+  useEffect(() => setDailyTimeDraft(dailyShowTime), [dailyShowTime]);
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -81,6 +87,15 @@ export function TaskManagerPanel({ tasks, today, onCreate, onUpdate, onDelete, d
           {onExportData && <button type="button" onClick={() => void onExportData()}>导出 JSON</button>}
         </div>
         {storageMessage && <p role="status">{storageMessage}</p>}
+      </section>}
+      {onSaveDailyShowTime && <section className="task-manager__settings" aria-label="提醒设置">
+        <div><strong>每日自动显示悬浮窗</strong><span>默认每天 10:00；如果电脑休眠或程序未运行，当天恢复后会补显示一次。</span></div>
+        <div className="task-manager__settings-control">
+          <label htmlFor="daily-show-time">显示时间</label>
+          <input id="daily-show-time" type="time" value={dailyTimeDraft} onChange={(event) => setDailyTimeDraft(event.target.value)} required />
+          <button type="button" disabled={!dailyTimeDraft || dailyTimeDraft === dailyShowTime} onClick={() => void onSaveDailyShowTime(dailyTimeDraft)}>保存时间</button>
+        </div>
+        {settingsMessage && <p role="status">{settingsMessage}</p>}
       </section>}
       <TaskFilters filters={filters} onChange={setFilters} />
       <p className="task-manager__count">共 {visibleTasks.length} 项，按截止日期排序</p>

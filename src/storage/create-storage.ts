@@ -22,7 +22,7 @@ export function createStorage(): StoragePort {
         updatedAt: "2026-08-12T00:00:00.000Z"
       }
     ],
-    settings: { upcomingDays: 7, alwaysOnTop: true, launchAtStartup: false, dataFilePath: null },
+    settings: { upcomingDays: 7, alwaysOnTop: true, launchAtStartup: false, dataFilePath: null, dailyShowTime: "10:00" },
     history: []
   });
   return storage;

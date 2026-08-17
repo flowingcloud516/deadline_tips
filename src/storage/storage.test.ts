@@ -25,6 +25,12 @@ describe("MemoryStorage", () => {
     expect((await storage.load()).settings.dataFilePath).toBe("D:\\deadline-tips\\data.json");
   });
 
+  it("adds the default daily show time to 0.1 data", () => {
+    const legacy = structuredClone(defaultAppData) as unknown as { settings: Record<string, unknown> };
+    delete legacy.settings.dailyShowTime;
+    expect(parseAppData(legacy).settings.dailyShowTime).toBe("10:00");
+  });
+
   it("exports and imports independent data snapshots", async () => {
     const storage = new MemoryStorage();
     await storage.exportTo("backup.json");

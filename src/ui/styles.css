@@ -168,6 +168,13 @@ h1 { font-family: Georgia, "Microsoft YaHei UI", serif; font-size: var(--font-ti
 .task-manager__storage .task-manager__storage-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; }
 .task-manager__storage code { overflow: hidden; color: var(--color-muted); font: 12px/1.4 ui-monospace, Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
 .task-manager__storage p { grid-column: 1 / -1; margin: 0; color: var(--color-accent); font-size: 12px; }
+.task-manager__settings { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 18px; margin-bottom: 14px; padding: 14px; border: 1px solid var(--color-line); border-radius: 14px; background: #faf8f2; }
+.task-manager__settings > div:first-child { display: grid; gap: 5px; }
+.task-manager__settings span { color: var(--color-muted); font-size: 12px; line-height: 1.5; }
+.task-manager__settings-control { display: flex; align-items: end; gap: 8px; }
+.task-manager__settings-control label { display: grid; gap: 4px; color: var(--color-muted); font-size: 12px; }
+.task-manager__settings-control input { min-height: 36px; padding: 6px 9px; border: 1px solid var(--color-line); border-radius: 8px; background: white; color: var(--color-ink); font: inherit; }
+.task-manager__settings p { grid-column: 1 / -1; margin: 0; color: var(--color-accent); font-size: 12px; }
 .task-manager__filters label { display: flex; align-items: center; gap: 7px; color: var(--color-muted); font-size: 13px; }
 .task-manager select, .task-manager input, .task-manager textarea { border: 1px solid rgb(65 61 52 / 18%); border-radius: 8px; padding: 8px 9px; background: #fff; color: var(--color-text); font: inherit; }
 .task-manager__date-field { display: grid; gap: 5px; }
@@ -230,5 +237,7 @@ h1 { font-family: Georgia, "Microsoft YaHei UI", serif; font-size: var(--font-ti
   .task-manager__header-actions { flex-direction: column; align-items: stretch; }
   .task-manager__storage { grid-template-columns: 1fr; }
   .task-manager__storage .task-manager__storage-actions { justify-content: flex-start; }
+  .task-manager__settings { grid-template-columns: 1fr; }
+  .task-manager__settings-control { align-items: end; flex-wrap: wrap; }
   .task-manager__table-wrap { max-height: calc(100vh - 240px); }
 }

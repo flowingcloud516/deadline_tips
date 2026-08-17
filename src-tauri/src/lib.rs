@@ -98,7 +98,8 @@ fn default_app_data() -> Value {
             "upcomingDays": 7,
             "alwaysOnTop": true,
             "launchAtStartup": false,
-            "dataFilePath": null
+            "dataFilePath": null,
+            "dailyShowTime": "10:00"
         },
         "history": []
     })
@@ -481,6 +482,16 @@ fn hide_task_manager(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn hide_deadline_widget(app: AppHandle) -> Result<(), String> {
+    let widget = app
+        .get_webview_window(WIDGET_LABEL)
+        .ok_or_else(|| "找不到悬浮窗".to_string())?;
+    widget
+        .hide()
+        .map_err(|error| format!("无法隐藏悬浮窗: {error}"))
+}
+
+#[tauri::command]
 fn show_deadline_widget(app: AppHandle) -> Result<(), String> {
     show_widget(&app)
 }
@@ -541,6 +552,7 @@ pub fn run() {
             import_app_data,
             open_task_manager,
             hide_task_manager,
+            hide_deadline_widget,
             show_deadline_widget,
             start_widget_drag
         ])
@@ -568,6 +580,7 @@ mod tests {
     fn default_document_uses_schema_version_one() {
         let data = default_app_data();
         assert_eq!(data["schemaVersion"], 1);
+        assert_eq!(data["settings"]["dailyShowTime"], "10:00");
         assert!(validate_app_data(data).is_ok());
     }
 

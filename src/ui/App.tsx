@@ -11,6 +11,7 @@ import { TaskManagerPanel } from "./manager/TaskManagerPanel";
 import type { TaskFormValue } from "./manager/manager-model";
 import { formatDeadline } from "./widget-model";
 import { localDateString, millisecondsUntilNextHour } from "./widget-clock";
+import { DEFAULT_DAILY_SHOW_TIME, isDailyShowTime, localDayKey, millisecondsUntilDailyReminderCheck, shouldShowDailyReminder } from "./daily-reminder";
 
 const storage = createStorage();
 const taskService = new TaskService(storage);
@@ -51,12 +52,15 @@ function useTasks() {
 }
 
 function WidgetApp() {
-  const [isExpanded, setIsExpanded] = useState(true);
   const { tasks, loading, error } = useTasks();
   const today = useLocalToday();
+  useDailyWidgetReminder();
   const sections = useMemo(() => queryWidgetTaskSections(tasks, today, 7), [tasks, today]);
   const openManager = async () => {
     if (isTauri()) await invoke("open_task_manager");
+  };
+  const hideWidget = async () => {
+    if (isTauri()) await invoke("hide_deadline_widget");
   };
   const startDragging = async () => {
     if (!isTauri()) return;
@@ -71,11 +75,11 @@ function WidgetApp() {
     <section className="widget" aria-label="截止日期悬浮窗">
       <div className="widget__topbar" data-tauri-drag-region onMouseDown={(event) => { if (event.button === 0 && !(event.target as HTMLElement).closest("button")) void startDragging(); }}>
         <div className="widget__title" data-tauri-drag-region><p className="eyebrow" data-tauri-drag-region>DEADLINE TIPS</p></div>
-        <button className="icon-button" type="button" aria-expanded={isExpanded} aria-label={isExpanded ? "收起任务列表" : "展开任务列表"} onClick={() => setIsExpanded((value) => !value)}>{isExpanded ? "−" : "+"}</button>
+        <button className="icon-button" type="button" aria-label="隐藏悬浮窗" title="隐藏悬浮窗" onClick={() => void hideWidget()}>−</button>
       </div>
       {loading && <p className="empty-state">正在读取本地任务…</p>}
       {error && <p className="error-state" role="alert">无法读取任务：{error}</p>}
-      {!loading && !error && isExpanded && <div className="widget__content">
+      {!loading && !error && <div className="widget__content">
         <TaskSection title="近期即将到期" subtitle={`未来 7 天 · ${sections.upcoming.length} 项`} emptyText="未来 7 天没有普通待办任务" tasks={sections.upcoming} type="upcoming" />
         <TaskSection title="周期任务" subtitle={`${sections.recurring.length} 项持续关注`} emptyText="暂时没有待完成的周期任务" tasks={sections.recurring} type="recurring" />
         <TaskSection title="重要任务" subtitle={`${sections.important.length} 项重点关注`} emptyText="暂时没有重要任务" tasks={sections.important} type="important" />
@@ -91,9 +95,12 @@ function ManagerApp() {
   const [dataFilePath, setDataFilePath] = useState("");
   const [storageMessage, setStorageMessage] = useState<string | null>(null);
   const [pendingImport, setPendingImport] = useState<{ path: string; data: Awaited<ReturnType<typeof storage.importFrom>> } | null>(null);
+  const [dailyShowTime, setDailyShowTime] = useState(DEFAULT_DAILY_SHOW_TIME);
+  const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
   useEffect(() => {
     if (!isTauri()) return;
     void invoke<string>("get_data_file_path").then(setDataFilePath).catch((reason) => setStorageMessage(String(reason)));
+    void storage.load().then((data) => setDailyShowTime(data.settings.dailyShowTime)).catch((reason) => setSettingsMessage(String(reason)));
   }, []);
   const mutate = async (operation: () => Promise<unknown>) => {
     await operation();
@@ -153,6 +160,7 @@ function ManagerApp() {
     try {
       await storage.save(pendingImport.data);
       const importedPath = pendingImport.path;
+      setDailyShowTime(pendingImport.data.settings.dailyShowTime);
       setPendingImport(null);
       await reload();
       await emit(DATA_CHANGED_EVENT);
@@ -162,10 +170,80 @@ function ManagerApp() {
       setPendingImport(null);
     }
   };
+  const saveDailyShowTime = async (time: string) => {
+    if (!isDailyShowTime(time)) {
+      setSettingsMessage("请输入有效的 24 小时时间。");
+      return;
+    }
+    try {
+      const data = await storage.load();
+      await storage.save({ ...data, settings: { ...data.settings, dailyShowTime: time } });
+      setDailyShowTime(time);
+      setSettingsMessage(`每日自动显示时间已更新为 ${time}。`);
+      if (isTauri()) await emit(DATA_CHANGED_EVENT);
+    } catch (reason) {
+      setSettingsMessage(`无法保存提醒时间：${reason instanceof Error ? reason.message : String(reason)}`);
+    }
+  };
 
   if (loading) return <main className="manager-loading">正在读取本地任务…</main>;
   if (error) return <main className="manager-loading" role="alert">无法读取任务：{error}</main>;
-  return <TaskManagerPanel tasks={tasks} today={today} dataFilePath={dataFilePath} storageMessage={storageMessage} onChooseDataFile={chooseDataFile} onExportData={exportData} onChooseImport={chooseImport} pendingImport={pendingImport ? { path: pendingImport.path, taskCount: pendingImport.data.tasks.length } : null} onCancelImport={() => setPendingImport(null)} onConfirmImport={confirmImport} onCreate={create} onUpdate={update} onDelete={remove} onClose={close} />;
+  return <TaskManagerPanel tasks={tasks} today={today} dataFilePath={dataFilePath} storageMessage={storageMessage} onChooseDataFile={chooseDataFile} onExportData={exportData} onChooseImport={chooseImport} pendingImport={pendingImport ? { path: pendingImport.path, taskCount: pendingImport.data.tasks.length } : null} onCancelImport={() => setPendingImport(null)} onConfirmImport={confirmImport} dailyShowTime={dailyShowTime} settingsMessage={settingsMessage} onSaveDailyShowTime={saveDailyShowTime} onCreate={create} onUpdate={update} onDelete={remove} onClose={close} />;
+}
+
+const LAST_DAILY_SHOW_KEY = "deadline-tips:last-daily-show";
+
+function useDailyWidgetReminder() {
+  const [time, setTime] = useState<string | null>(null);
+
+  useEffect(() => {
+    const reload = async () => {
+      try {
+        const data = await storage.load();
+        setTime(data.settings.dailyShowTime);
+      } catch {
+        setTime(DEFAULT_DAILY_SHOW_TIME);
+      }
+    };
+    void reload();
+    if (!isTauri()) return;
+    let dispose: (() => void) | undefined;
+    void listen(DATA_CHANGED_EVENT, () => void reload()).then((unlisten) => { dispose = unlisten; });
+    return () => dispose?.();
+  }, []);
+
+  useEffect(() => {
+    if (!isTauri() || !time) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let stopped = false;
+    const checkAndSchedule = async () => {
+      if (stopped) return;
+      if (timer) clearTimeout(timer);
+      timer = undefined;
+      const now = new Date();
+      let lastShownDay = localStorage.getItem(LAST_DAILY_SHOW_KEY);
+      if (shouldShowDailyReminder(now, time, lastShownDay)) {
+        try {
+          await invoke("show_deadline_widget");
+          lastShownDay = localDayKey(now);
+          localStorage.setItem(LAST_DAILY_SHOW_KEY, lastShownDay);
+        } catch {
+          // Leave the day unmarked so focus or resume can retry.
+        }
+      }
+      if (!stopped) timer = setTimeout(() => void checkAndSchedule(), millisecondsUntilDailyReminderCheck(new Date(), time, lastShownDay));
+    };
+    const checkWhenActive = () => void checkAndSchedule();
+    void checkAndSchedule();
+    window.addEventListener("focus", checkWhenActive);
+    document.addEventListener("visibilitychange", checkWhenActive);
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+      window.removeEventListener("focus", checkWhenActive);
+      document.removeEventListener("visibilitychange", checkWhenActive);
+    };
+  }, [time]);
 }
 
 function TaskSection({ title, subtitle, emptyText, tasks, type }: { title: string; subtitle: string; emptyText: string; tasks: TaskDeadlineSummary[]; type: "upcoming" | "recurring" | "important" }) {
